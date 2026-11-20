@@ -26,6 +26,19 @@ To load the `.env` file, run `node --env-file=.env --disable-warning=Experimenta
 
 Get an API key at <https://console.anthropic.com>. You pay per use.
 
+## Run it in GitHub Codespaces (no install needed)
+
+1. On the repo page, click **Code → Codespaces → Create codespace on main**. It installs everything automatically (Node 22 is pinned in `.devcontainer/`).
+2. In the terminal, run `npm start`.
+3. Click **Open in Browser** on the popup for port 3000 (or use the **Ports** tab).
+
+**To use real AI in Codespaces:** add your key as a Codespaces secret, not in a file. Go to GitHub **Settings → Codespaces → Secrets → New secret**, name it `ANTHROPIC_API_KEY`, and give this repo access. Then restart the codespace. The server reads the key from the environment automatically.
+
+Notes:
+- The forwarded port is **private** by default (only you can open it). Don't make it public unless you mean to share your API bill.
+- Codespaces stop after ~30 minutes idle. Your accounts and units in `data/` persist in that codespace until you delete it, but not across different codespaces.
+- Free GitHub accounts get a monthly allowance of Codespaces hours; check your usage under Settings → Billing.
+
 ## How it works
 
 | Piece | What it does |

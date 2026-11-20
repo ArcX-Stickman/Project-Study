@@ -1,0 +1,18 @@
+{
+  "name": "Project Study",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
+  "postCreateCommand": "npm install",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "Project Study", "onAutoForward": "openBrowser" }
+  },
+  "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Optional. Your Anthropic API key from console.anthropic.com. Leave empty for free demo mode.",
+      "documentationUrl": "https://console.anthropic.com/settings/keys"
+    }
+  },
+  "customizations": {
+    "codespaces": { "openFiles": ["README.md"] }
+  }
+}
