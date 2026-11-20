@@ -1,0 +1,28 @@
+{
+  "name": "project-study",
+  "version": "0.1.0",
+  "description": "AI-powered, game-like study app: upload class material, practice with interactive visuals and real mistake feedback.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server.js",
+    "dev": "node --watch --disable-warning=ExperimentalWarning server.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
+    "canvas-confetti": "^1.9.3",
+    "cookie-parser": "^1.4.7",
+    "dompurify": "^3.1.6",
+    "express": "^5.3.0",
+    "katex": "^0.16.11",
+    "marked": "^12.0.2",
+    "mathjs": "^13.2.0",
+    "multer": "^2.5.0",
+    "zod": "^4.6.7"
+  },
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  }
+}
