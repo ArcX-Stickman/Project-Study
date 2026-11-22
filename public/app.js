@@ -314,14 +314,18 @@
           <div class="worked-answer hidden" id="workedAns">✅ Answer: ${Render.inline(lesson.worked_example.answer)}</div>
         </div>
         ${tutorBox()}
-        <div class="sticky-cta"><button class="btn btn-primary btn-lg pulse" id="startPractice">Start practice ▶ <small>${lesson.questions.length} questions</small></button></div>
+        <div class="sticky-cta mode-pick">
+          <button class="btn btn-primary btn-lg pulse" id="startBattle">⚔️ Boss Battle <small>${lesson.questions.length} questions</small></button>
+          <button class="btn btn-ghost" id="startPractice">📝 Classic practice</button>
+        </div>
       </div>`;
     Visuals.render($('#lessonVisual'), lesson.visual);
     Visuals.render($('#workedSteps'), { type: 'steps', title: '', caption: '', steps: lesson.worked_example.steps });
     const obs = new MutationObserver(() => { if ($('#workedSteps .step-controls button[disabled]')) { $('#workedAns').classList.remove('hidden'); $('#workedAns').classList.add('pop-in'); obs.disconnect(); } });
     obs.observe($('#workedSteps'), { subtree: true, attributes: true });
     wireTutor(ctx, () => null);
-    $('#startPractice').onclick = () => { Sound.whoosh(); startPractice(ctx); };
+    $('#startPractice').onclick = () => { Sound.whoosh(); startPractice(ctx, 'classic'); };
+    $('#startBattle').onclick = () => { Sound.whoosh(); startPractice(ctx, 'battle'); };
   }
 
   function tutorBox() {
@@ -354,12 +358,17 @@
     return { ...q, choices: order.map((i) => q.choices[i]), choice_feedback: order.map((i) => q.choice_feedback[i]), correct_index: order.indexOf(q.correct_index) };
   }
 
-  function startPractice(ctx) {
+  async function startPractice(ctx, mode = 'classic') {
     const { lesson } = ctx;
     const state = {
       queue: lesson.questions.map((q, i) => ({ q, qIdx: i, attempts: 0, original: true })),
       pos: 0, combo: 0, bestCombo: 0, firstTry: 0, total: lesson.questions.length, xp: 0, missed: [], similarAsked: new Set(),
+      battle: null,
     };
+    if (mode === 'battle') {
+      if (!Battle.getHero()) await Battle.pickHero();
+      state.battle = Battle.create({ lesson, subject: ctx.unit.subject || ctx.unit.data.subject, idx: ctx.idx, level: levelOf(me.xp), total: state.total });
+    }
     renderQuestion(ctx, state);
   }
 
@@ -369,6 +378,7 @@
     const q = item.q;
     const pct = Math.round(state.pos / state.queue.length * 100);
     let hintUsed = false, chosen = null;
+    window.scrollTo(0, 0);
     app.innerHTML = `
       <div class="page narrow practice">
         <div class="practice-top">
@@ -376,9 +386,10 @@
           <div class="progress"><div style="width:${pct}%"></div></div>
           <div class="combo ${state.combo >= 2 ? 'hot' : ''}" id="combo">${state.combo >= 2 ? `🔥 ×${state.combo}` : ''}</div>
         </div>
-        ${item.original ? '' : '<div class="tag mastery">🔁 Mastery check — same skill, new problem</div>'}
+        ${state.battle ? Battle.arenaHtml(state.battle) : ''}
+        ${item.original ? '' : `<div class="tag mastery">🔁 ${state.battle ? 'Rematch move' : 'Mastery check'} — same skill, new problem</div>`}
         <div class="card question pop-in" id="qCard">
-          <div class="q-kind">${q.kind === 'mcq' ? 'Multiple choice' : 'Free response'}</div>
+          <div class="q-kind">${state.battle ? '⚔️ Your move · ' : ''}${q.kind === 'mcq' ? 'Multiple choice' : 'Free response'}</div>
           <div class="q-prompt prose">${Render.md(q.prompt)}</div>
           ${q.kind === 'mcq'
             ? `<div class="choices">${q.choices.map((c, i) => `<button class="choice" data-i="${i}"><span class="key">${i + 1}</span><span>${Render.inline(c)}</span></button>`).join('')}</div>`
@@ -394,6 +405,7 @@
         ${tutorBox()}
       </div>`;
     wireTutor(ctx, () => q.prompt);
+    if (state.battle) Battle.mount(state.battle, () => renderQuestion(ctx, state));
     $('#quit').onclick = () => { if (confirm('Leave this lesson? Progress in this round is lost.')) location.hash = `#/unit/${ctx.unitId}`; };
     const check = $('#check');
 
@@ -441,8 +453,9 @@
   function onCorrect(ctx, state, item, r, chosen) {
     const q = item.q;
     if (item.attempts === 1 && item.original) state.firstTry++;
+    const hit = state.battle ? Battle.attack(state.battle, { combo: state.combo, isLast: state.pos === state.queue.length - 1 }) : null;
     state.combo++; state.bestCombo = Math.max(state.bestCombo, state.combo); state.xp += r.xp;
-    state.combo >= 2 ? Sound.combo(state.combo) : Sound.correct();
+    if (!hit) state.combo >= 2 ? Sound.combo(state.combo) : Sound.correct();
     if (state.combo > 0 && state.combo % 3 === 0) burst({ particleCount: 60 });
     setTimeout(() => Sound.xp(), 180);
     floatXp(r.xp, $('#check'));
@@ -452,7 +465,7 @@
     $('#combo').className = `combo ${state.combo >= 2 ? 'hot pop-in' : ''}`; $('#combo').textContent = state.combo >= 2 ? `🔥 ×${state.combo}` : '';
     const praise = ['Nailed it!', 'Correct!', 'Clean!', 'Yes!', 'Locked in!'][Math.floor(Math.random() * 5)];
     $('#feedback').innerHTML = `
-      <div class="fb good pop-in"><div class="fb-head">✅ ${praise} <span class="xp-chip">+${r.xp} XP</span></div>
+      <div class="fb good pop-in"><div class="fb-head">${hit ? `💥 ${hit.ko ? 'K.O.! Boss defeated!' : hit.ult ? `ULTIMATE! ${hit.damage} damage` : hit.crit ? `Critical hit! ${hit.damage} damage` : hit.damage ? `${praise} ${hit.damage} damage` : `${praise} The boss is hanging on!`}` : `✅ ${praise}`} <span class="xp-chip">+${r.xp} XP</span></div>
       ${r.partial && r.grade ? `<div class="prose">${Render.md(r.grade.feedback)}</div>` : ''}
       ${q.kind === 'mcq' && q.choice_feedback?.[chosen] ? `<div class="prose small">${Render.inline(q.choice_feedback[chosen])}</div>` : ''}
       <details><summary>See full solution</summary><ol>${q.solution_steps.map((s) => `<li>${Render.inline(s)}</li>`).join('')}</ol></details></div>`;
@@ -463,7 +476,8 @@
   function onWrong(ctx, state, item, r, chosen, answer) {
     const q = item.q;
     state.combo = 0;
-    Sound.wrong();
+    const blow = state.battle ? Battle.counter(state.battle) : null;
+    if (!blow) Sound.wrong();
     $('#qCard').classList.add('shake');
     $('#combo').textContent = '';
     if (q.kind === 'mcq') {
@@ -477,7 +491,7 @@
     state.missed.push(g.misconception || q.common_mistake || q.prompt.slice(0, 60));
     $('#feedback').innerHTML = `
       <div class="fb bad pop-in">
-        <div class="fb-head">🧐 Let's see what happened</div>
+        <div class="fb-head">${blow ? `🔍 Boss weakness revealed <small class="muted">(you took ${blow.damage} damage)</small>` : "🧐 Let's see what happened"}</div>
         ${g.misconception ? `<div class="miscon">Likely mix-up: <b>${Render.inline(g.misconception)}</b></div>` : ''}
         <div class="prose">${Render.md(g.feedback)}</div>
         ${g.fix_steps?.length ? `<div class="fix"><b>How to fix it</b><ol>${g.fix_steps.map((s) => `<li>${Render.inline(s)}</li>`).join('')}</ol></div>` : ''}
@@ -485,7 +499,8 @@
         <div class="encourage">${esc(g.encouragement || '')}</div>
       </div>`;
     Visuals.render($('#fbVisual'), g.visual && g.visual.type !== 'none' ? g.visual : q.visual);
-    $('#feedback').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // In battle mode, let the player see the boss's hit before scrolling to the explanation.
+    setTimeout(() => $('#feedback')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), blow ? 1100 : 0);
 
     // Mastery loop: queue a fresh problem on the same skill (AI) or a reshuffled repeat (demo).
     const key = item.original ? item.qIdx : `s${state.pos}`;
@@ -498,11 +513,19 @@
       else slot.pending = false;
     }
 
-    if (q.kind === 'frq' && item.attempts < 3) {
-      setActions(`<button class="btn btn-ghost" id="skip">Show answer & move on</button><button class="btn btn-primary btn-lg" id="retry">Try again ↻</button>`);
-      $('#retry').onclick = () => { Sound.click(); renderQuestion(ctx, state); };
-      $('#skip').onclick = () => revealAndContinue(ctx, state, q);
-    } else revealAndContinue(ctx, state, q, false);
+    const nextSteps = () => {
+      if (q.kind === 'frq' && item.attempts < 3) {
+        setActions(`<button class="btn btn-ghost" id="skip">Show answer & move on</button><button class="btn btn-primary btn-lg" id="retry">${state.battle ? '⚔️ Counterattack ↻' : 'Try again ↻'}</button>`);
+        $('#retry').onclick = () => { Sound.click(); renderQuestion(ctx, state); };
+        $('#skip').onclick = () => revealAndContinue(ctx, state, q);
+      } else revealAndContinue(ctx, state, q, false);
+    };
+    if (blow?.knockedOut) {
+      // Knocked out: you still learn from the explanation, then revive at half HP and keep going.
+      $('#feedback').insertAdjacentHTML('afterbegin', '<div class="fb ko-panel pop-in"><div class="fb-head">💀 You were knocked out!</div>Read the boss\'s weakness below, then get back up.</div>');
+      setActions(`<span></span><button class="btn btn-primary btn-lg" id="revive">❤️ Revive and keep fighting</button>`);
+      $('#revive').onclick = () => { Battle.revive(state.battle); $('.ko-panel')?.remove(); nextSteps(); };
+    } else nextSteps();
   }
 
   function revealAndContinue(ctx, state, q, sound = true) {
@@ -528,12 +551,16 @@
     app.innerHTML = `
       <div class="page narrow center">
         <div class="card results pop-in">
-          <h1>Lesson complete!</h1>
+          ${state.battle ? (state.battle.bhp <= 0
+            ? `<div class="result-boss">${esc(state.battle.boss.emoji)}</div><h1>🏆 Victory!</h1><p class="muted">${esc(state.battle.boss.name)} has been defeated.</p>`
+            : `<div class="result-boss alive">${esc(state.battle.boss.emoji)}</div><h1>🏃 ${esc(state.battle.boss.name)} escaped!</h1><p class="muted">It had ${Math.round(state.battle.bhp)} HP left. Fewer mistakes = more damage. Replay to finish it off.</p>`)
+            : '<h1>Lesson complete!</h1>'}
           <div class="big-stars">${[0, 1, 2].map((i) => `<span class="star" data-i="${i}">★</span>`).join('')}</div>
           <div class="stats">
             <div><b>${Math.round(acc * 100)}%</b><small>first-try accuracy</small></div>
             <div><b>${state.xp + res.bonus}</b><small>XP earned</small></div>
             <div><b>🔥 ${state.bestCombo}</b><small>best combo</small></div>
+            ${state.battle ? `<div><b>💥 ${state.battle.damageDealt}</b><small>damage dealt</small></div><div><b>❤️ ${state.battle.revives}</b><small>revives used</small></div>` : ''}
           </div>
           ${state.missed.length ? `<div class="review"><h3>Review these before your test</h3><ul>${[...new Set(state.missed)].map((m) => `<li>${Render.inline(m)}</li>`).join('')}</ul></div>` : '<p class="perfect">Flawless. You own this skill. 💪</p>'}
           <div class="row">
@@ -546,7 +573,7 @@
     Sound.complete(); burst({ particleCount: 140 });
     app.querySelectorAll('.star').forEach((s, i) => { if (i < res.stars) setTimeout(() => { s.classList.add('on'); Sound.star(i); }, 500 + i * 380); });
     setTimeout(() => { floatXp(res.bonus, $('.results h1')); updateUser(res.user); }, 1700);
-    $('#again').onclick = () => renderLesson(ctx.unitId, ctx.idx);
+    $('#again').onclick = () => (state.battle ? startPractice(ctx, 'battle') : renderLesson(ctx.unitId, ctx.idx));
   }
 
   // ---------- router ----------

@@ -274,3 +274,68 @@ label { display: block; font-weight: 700; font-size: .92rem; margin-bottom: 10px
 
 .modal-wide { width: min(620px, 100%); max-height: 90vh; overflow-y: auto; }
 .import-steps { padding-left: 1.3em; } .import-steps li { margin: 8px 0; }
+
+/* ---------- Boss Battle ---------- */
+.mode-pick { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.arena { position: relative; border-radius: var(--radius); padding: 12px 14px 0; margin-bottom: 16px; overflow: hidden; color: #fff;
+  background: linear-gradient(180deg, #2b1d5c 0%, #4b2a86 55%, #1b1236 56%, #120c26 100%); border: 2px solid #0006; box-shadow: var(--shadow); }
+.arena.theme-history, .arena.theme-english { background: linear-gradient(180deg, #5c3b1d 0%, #8a5a2b 55%, #2d1a0b 56%, #1c1006 100%); }
+.arena.theme-physics, .arena.theme-engineering { background: linear-gradient(180deg, #0d3b5c 0%, #1f6a8a 55%, #0b1f2d 56%, #06121c 100%); }
+.arena.theme-chemistry, .arena.theme-biology { background: linear-gradient(180deg, #0f4d3a 0%, #1f8a62 55%, #0b2d22 56%, #061c15 100%); }
+.arena.theme-language, .arena.theme-computer_science { background: linear-gradient(180deg, #5c1d4a 0%, #8a2b6e 55%, #2d0b25 56%, #1c0617 100%); }
+.arena-hud { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; font-size: .85rem; }
+.fighter-hud b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 0 #0008; }
+.fighter-hud.right { text-align: right; }
+.fighter-hud small { opacity: .8; font-weight: 700; }
+.hpbar { position: relative; height: 16px; background: #0007; border: 2px solid #000a; border-radius: 6px; overflow: hidden; margin-top: 4px; }
+.hpbar div { height: 100%; transition: width .45s cubic-bezier(.3,1.3,.5,1); }
+.hpbar.p div { background: linear-gradient(90deg, #00c896, #6ff5c8); }
+.hpbar.b div { background: linear-gradient(90deg, #ff5f6d, #ffa36c); margin-left: auto; }
+.fighter-hud.right .hpbar div { float: right; }
+.hpbar span { position: absolute; inset: 0; display: grid; place-items: center; font-size: .7rem; font-weight: 900; text-shadow: 0 1px 0 #000; }
+.meter { position: relative; height: 10px; width: 70%; background: #0007; border-radius: 6px; overflow: hidden; margin-top: 4px; }
+.meter div { height: 100%; background: linear-gradient(90deg, #ffc43d, #fff36b); transition: width .4s; }
+.meter span { position: absolute; left: 6px; top: -2px; font-size: .6rem; font-weight: 900; letter-spacing: .08em; opacity: .85; }
+.meter.full { box-shadow: 0 0 12px #ffc43d; animation: pulseBtn 1s infinite; }
+.stage { position: relative; height: 150px; display: flex; align-items: flex-end; justify-content: space-between; padding: 0 8%; }
+.fighter { font-size: 74px; line-height: 1; padding-bottom: 14px; filter: drop-shadow(0 8px 0 #0006); animation: idle 1.6s ease-in-out infinite; }
+.fighter.boss { font-size: 92px; transform: scaleX(-1); animation-name: idleBoss; }
+.fighter.lunge { animation: lunge .45s ease-out; }
+.fighter.lunge-left { animation: lungeLeft .45s ease-out; }
+.fighter.hurt { animation: hurt .45s; }
+.fighter.boss.hurt { animation: hurtBoss .45s; }
+.fighter.down { animation: none; transform: rotate(-90deg) translateX(-20px); opacity: .5; transition: all .5s; }
+.fighter.boss.down { transform: scaleX(-1) rotate(-90deg) translateX(-20px); }
+.speech { position: absolute; right: 8%; top: 0; max-width: 55%; background: #fff; color: #222; font-weight: 800; font-size: .85rem; padding: 6px 10px; border-radius: 12px; }
+.speech::after { content: ''; position: absolute; right: 30px; bottom: -8px; border: 8px solid transparent; border-top-color: #fff; border-bottom: 0; }
+.dmg { position: absolute; transform: translateX(-50%); font-weight: 900; font-size: 1.6rem; color: #fff; text-shadow: 0 3px 0 #000, 0 0 10px #ff5f6d; pointer-events: none; animation: dmgUp 1.2s ease-out forwards; z-index: 3; }
+.dmg.crit { font-size: 2.2rem; color: #ffe14d; }
+.dmg.label { font-size: .95rem; margin-top: -30px; color: #ffe14d; letter-spacing: .05em; }
+.dmg.taken { color: #ff8a8a; }
+.dmg.heal { color: #6ff5c8; font-size: 1.1rem; }
+.proj { position: absolute; font-size: 40px; z-index: 2; pointer-events: none; animation: fly .3s ease-in forwards; }
+.proj.big { font-size: 70px; }
+.banner { position: absolute; inset: 0; display: grid; place-items: center; font-size: clamp(2.2rem, 9vw, 3.6rem); font-weight: 900; font-style: italic; letter-spacing: .04em;
+  color: #fff; text-shadow: 0 4px 0 #000, 0 0 24px #7c6cff; z-index: 5; animation: bannerIn .9s ease-out forwards; pointer-events: none; }
+.banner.fight { color: #ffe14d; text-shadow: 0 4px 0 #000, 0 0 24px #ff7a59; }
+.banner.ko { color: #ff5f6d; animation-duration: 1.4s; }
+.quake { animation: shake .4s; }
+.hero-switch { position: absolute; left: 8px; bottom: 8px; background: #0006; border: 0; color: #fff; border-radius: 8px; padding: 2px 8px; cursor: pointer; font-weight: 900; }
+.hero-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.hero-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px; border-radius: 14px; border: 2px solid var(--border); background: var(--bg2);
+  color: var(--text); font: inherit; cursor: pointer; box-shadow: 0 4px 0 var(--border); text-align: center; }
+.hero-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+.hero-card small { color: var(--muted); }
+.hero-big { font-size: 54px; }
+.ko-panel { background: color-mix(in srgb, var(--bad) 18%, var(--card)); border-color: var(--bad); }
+.result-boss { font-size: 80px; transform: rotate(-90deg); opacity: .6; } .result-boss.alive { transform: none; opacity: 1; animation: idle 1.6s infinite; }
+@keyframes idle { 50% { transform: translateY(-6px); } }
+@keyframes idleBoss { 0%, 100% { transform: scaleX(-1) translateY(0); } 50% { transform: scaleX(-1) translateY(-8px) scale(1.03); } }
+@keyframes lunge { 40% { transform: translateX(90px) scale(1.1); } }
+@keyframes lungeLeft { 0%, 100% { transform: scaleX(-1); } 40% { transform: scaleX(-1) translateX(90px) scale(1.1); } }
+@keyframes hurt { 0%, 100% { filter: none; transform: none; } 25% { filter: brightness(2) sepia(1) hue-rotate(-50deg) saturate(5); transform: translateX(-14px) rotate(-8deg); } 60% { transform: translateX(8px); } }
+@keyframes hurtBoss { 0%, 100% { filter: none; transform: scaleX(-1); } 25% { filter: brightness(2) sepia(1) hue-rotate(-50deg) saturate(5); transform: scaleX(-1) translateX(-14px) rotate(8deg); } 60% { transform: scaleX(-1) translateX(8px); } }
+@keyframes fly { to { transform: translate(var(--dx), var(--dy)) rotate(360deg) scale(1.3); opacity: .9; } }
+@keyframes dmgUp { 0% { opacity: 0; transform: translate(-50%, 10px) scale(.5); } 15% { opacity: 1; transform: translate(-50%, -10px) scale(1.25); } 100% { opacity: 0; transform: translate(-50%, -70px) scale(1); } }
+@keyframes bannerIn { 0% { opacity: 0; transform: scale(2.4); } 25% { opacity: 1; transform: scale(1); } 75% { opacity: 1; transform: scale(1.05); } 100% { opacity: 0; transform: scale(.9); } }
+@media (max-width: 520px) { .fighter { font-size: 56px; } .fighter.boss { font-size: 70px; } .stage { height: 120px; } }

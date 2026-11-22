@@ -57,6 +57,13 @@ const Sound = (() => {
       [1047, 1319, 1568].forEach((f) => tone(f, 0.4, 0.6, { type: 'triangle', vol: 0.09 }));
       noise(0.4, 0.4, 0.04);
     },
+    slash: () => { noise(0, 0.12, 0.12); tone(900, 0, 0.1, { type: 'sawtooth', vol: 0.05, slide: -600 }); },
+    hit: () => { tone(110, 0, 0.18, { type: 'square', vol: 0.12, slide: -60 }); noise(0, 0.15, 0.1); },
+    crit: () => { noise(0, 0.2, 0.14); [880, 1320].forEach((f, i) => tone(f, i * 0.05, 0.18, { type: 'square', vol: 0.08 })); },
+    ultimate: () => { [392, 523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.05, 0.25, { type: 'sawtooth', vol: 0.07 })); noise(0.25, 0.5, 0.12); },
+    hurt: () => { tone(300, 0, 0.25, { type: 'sawtooth', vol: 0.1, slide: -220 }); noise(0, 0.12, 0.08); },
+    fight: () => { tone(523, 0, 0.12, { type: 'square', vol: 0.09 }); tone(784, 0.12, 0.3, { type: 'square', vol: 0.1 }); },
+    ko: () => { [784, 659, 523, 392, 262].forEach((f, i) => tone(f, i * 0.1, 0.25, { type: 'triangle', vol: 0.13 })); noise(0, 0.4, 0.1); },
     star: (i = 0) => tone(880 * Math.pow(1.26, i), 0, 0.25, { type: 'triangle', vol: 0.12, slide: 300 }),
   };
 
