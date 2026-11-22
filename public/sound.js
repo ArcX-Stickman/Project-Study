@@ -64,6 +64,10 @@ const Sound = (() => {
     hurt: () => { tone(300, 0, 0.25, { type: 'sawtooth', vol: 0.1, slide: -220 }); noise(0, 0.12, 0.08); },
     fight: () => { tone(523, 0, 0.12, { type: 'square', vol: 0.09 }); tone(784, 0.12, 0.3, { type: 'square', vol: 0.1 }); },
     ko: () => { [784, 659, 523, 392, 262].forEach((f, i) => tone(f, i * 0.1, 0.25, { type: 'triangle', vol: 0.13 })); noise(0, 0.4, 0.1); },
+    encounter: () => { for (let i = 0; i < 10; i++) tone(300 + i * 90, i * 0.05, 0.06, { type: 'square', vol: 0.06 }); tone(1200, 0.5, 0.25, { type: 'square', vol: 0.05, slide: -900 }); },
+    blip: () => tone(1800, 0, 0.018, { type: 'square', vol: 0.015 }),
+    drain: () => tone(1500, 0, 0.03, { type: 'square', vol: 0.03 }),
+    victory: () => [[392, 0, 0.1], [523, 0.1, 0.1], [659, 0.2, 0.1], [784, 0.3, 0.18], [659, 0.5, 0.1], [784, 0.6, 0.1], [1047, 0.72, 0.6]].forEach(([f, t, d]) => { tone(f, t, d, { type: 'square', vol: 0.07 }); tone(f / 2, t, d, { type: 'triangle', vol: 0.08 }); }),
     star: (i = 0) => tone(880 * Math.pow(1.26, i), 0, 0.25, { type: 'triangle', vol: 0.12, slide: 300 }),
   };
 

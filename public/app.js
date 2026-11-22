@@ -334,6 +334,7 @@
         <div class="sticky-cta mode-pick">
           <button class="btn btn-primary btn-lg pulse" id="startBattle">⚔️ Boss Battle <small>${lesson.questions.length} questions</small></button>
           <button class="btn btn-ghost" id="startPractice">📝 Classic practice</button>
+          <label class="beta-toggle"><input type="checkbox" id="pxToggle" ${Pixel.on() ? 'checked' : ''}> 👾 Pixel battle <span class="beta">BETA</span></label>
         </div>
       </div>`;
     Visuals.render($('#lessonVisual'), lesson.visual);
@@ -343,6 +344,7 @@
     wireTutor(ctx, () => null);
     $('#startPractice').onclick = () => { Sound.whoosh(); startPractice(ctx, 'classic'); };
     $('#startBattle').onclick = () => { Sound.whoosh(); startPractice(ctx, 'battle'); };
+    $('#pxToggle').onchange = (e) => { Pixel.setOn(e.target.checked); Sound.select(); toast(e.target.checked ? '👾 Pixel battle on (beta). Start a Boss Battle!' : 'Pixel battle off'); };
   }
 
   function tutorBox() {

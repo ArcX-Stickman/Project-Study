@@ -41,6 +41,7 @@ const vendor = {
   'purify.min.js': 'dompurify/dist/purify.min.js',
   'math.js': 'mathjs/lib/browser/math.js',
   'confetti.js': 'canvas-confetti/dist/confetti.browser.js',
+  'pixel-font.woff2': '@fontsource/press-start-2p/files/press-start-2p-latin-400-normal.woff2',
 };
 for (const [name, p] of Object.entries(vendor)) {
   app.get(`/vendor/${name}`, (req, res) => res.sendFile(path.resolve('node_modules', p)));

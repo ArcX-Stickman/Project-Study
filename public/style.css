@@ -339,3 +339,59 @@ label { display: block; font-weight: 700; font-size: .92rem; margin-bottom: 10px
 @keyframes dmgUp { 0% { opacity: 0; transform: translate(-50%, 10px) scale(.5); } 15% { opacity: 1; transform: translate(-50%, -10px) scale(1.25); } 100% { opacity: 0; transform: translate(-50%, -70px) scale(1); } }
 @keyframes bannerIn { 0% { opacity: 0; transform: scale(2.4); } 25% { opacity: 1; transform: scale(1); } 75% { opacity: 1; transform: scale(1.05); } 100% { opacity: 0; transform: scale(.9); } }
 @media (max-width: 520px) { .fighter { font-size: 56px; } .fighter.boss { font-size: 70px; } .stage { height: 120px; } }
+
+/* ---------- Pixel battle (beta) ---------- */
+@font-face { font-family: 'PixelFont'; src: url('/vendor/pixel-font.woff2') format('woff2'); font-display: swap; }
+.beta-toggle { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 8px 12px; border-radius: 12px; background: var(--card); border: 2px solid var(--border); cursor: pointer; font-weight: 800; }
+.beta-toggle input { width: auto; margin: 0; accent-color: var(--primary); }
+.beta { font-size: .65rem; background: var(--warn); color: #3a2400; padding: 2px 6px; border-radius: 6px; letter-spacing: .05em; }
+.px-arena { padding: 0; background: #1b1a2e; border: 4px solid #1b1a2e; border-radius: 10px; font-family: 'PixelFont', ui-monospace, monospace; image-rendering: pixelated; }
+.px-scene { position: relative; aspect-ratio: 192 / 108; overflow: hidden; border-radius: 6px 6px 0 0; }
+.px-bg { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.px-sprite { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+.px-arena .fighter { position: absolute; padding: 0; font-size: 0; filter: drop-shadow(0 3px 0 #0005); animation: pxBob 1s steps(1) infinite; transform: none; }
+.px-arena .fighter.hero { left: 17%; bottom: 7%; width: 17%; }
+.px-arena .fighter.boss { left: 59%; bottom: 42%; width: 26%; animation-delay: .5s; }
+.px-arena .fighter.lunge { animation: pxLunge .4s steps(6); }
+.px-arena .fighter.boss.lunge-left { animation: pxLungeLeft .4s steps(6); }
+.px-arena .fighter.hurt, .px-arena .fighter.boss.hurt { animation: pxBlink .6s steps(1); }
+.px-arena .fighter.down, .px-arena .fighter.boss.down { animation: pxFaint .7s steps(7) forwards; transform: none; opacity: 1; }
+.px-box { position: absolute; background: #f8f0d8; color: #1b1a2e; border: 3px solid #1b1a2e; border-radius: 6px 0 6px 0; padding: 5px 8px 6px; box-shadow: 3px 3px 0 #0006; min-width: 38%; max-width: 46%; }
+.px-box.boss-box { left: 3%; top: 5%; }
+.px-box.hero-box { right: 3%; bottom: 6%; }
+.px-name { font-size: clamp(6px, 1.25vw, 9px); line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.px-name span { float: right; margin-left: 6px; }
+.px-hp { display: flex; align-items: center; gap: 4px; margin-top: 3px; }
+.px-hp em { font-style: normal; font-size: clamp(5px, 1vw, 7px); color: #e8a23a; background: #1b1a2e; padding: 1px 3px; border-radius: 2px; }
+.px-arena .hpbar { flex: 1; height: 9px; margin: 0; border: 2px solid #1b1a2e; border-radius: 3px; background: #4a4a5a; }
+.px-arena .hpbar div { background: #3ccf6e; transition: width .7s steps(14); }
+.px-arena .hpbar.mid div { background: #f6c33a; }
+.px-arena .hpbar.low div { background: #e8483f; }
+.px-arena .hpbar span { display: none; }
+.px-arena .fighter-hud.right .hpbar div, .px-arena .hpbar.b div { float: left; margin: 0; }
+.px-arena .meter { width: 100%; height: 6px; margin-top: 4px; border-radius: 2px; background: #4a4a5a; }
+.px-arena .meter span { display: none; }
+.px-arena .meter div { background: #5fd3e8; transition: width .5s steps(8); }
+.px-arena .meter.full div { background: #ffd23f; }
+.px-text { position: relative; min-height: 64px; padding: 12px 34px 12px 14px; background: #f8f8f8; color: #1b1a2e; font-size: clamp(8px, 1.6vw, 11px); line-height: 1.9;
+  border-top: 4px solid #1b1a2e; box-shadow: inset 0 0 0 3px #f8f8f8, inset 0 0 0 6px #5a6b8c; border-radius: 0 0 6px 6px; }
+.px-text.done::after { content: '▼'; position: absolute; right: 14px; bottom: 10px; font-size: 9px; animation: blink 0.8s steps(1) infinite; }
+.px-ctrl { position: absolute; right: 2%; top: 4%; display: flex; gap: 4px; }
+.px-ctrl button { font: 10px 'PixelFont', monospace; background: #1b1a2ecc; color: #fff; border: 2px solid #fff6; border-radius: 4px; width: 26px; height: 24px; cursor: pointer; padding: 0; }
+.px-arena .dmg { font-family: 'PixelFont', monospace; font-size: clamp(11px, 2.4vw, 16px); text-shadow: 2px 2px 0 #1b1a2e, -1px -1px 0 #1b1a2e; animation-timing-function: steps(10); }
+.px-arena .dmg.crit { font-size: clamp(13px, 3vw, 20px); }
+.px-arena .dmg.label { font-size: clamp(7px, 1.4vw, 10px); }
+.px-arena .proj { width: 7%; animation-timing-function: steps(6); }
+.px-arena .proj.big { width: 11%; }
+.px-arena .banner { font-family: 'PixelFont', monospace; font-style: normal; }
+.px-arena .hero-switch { display: none; }
+.px-encounter { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; pointer-events: none; transition: opacity .3s; }
+.px-encounter i { flex: 1; background: #1b1a2e; transform: scaleX(0); animation: pxBars .35s steps(7) forwards; }
+.px-encounter i:nth-child(odd) { transform-origin: left; } .px-encounter i:nth-child(even) { transform-origin: right; }
+.px-encounter.out { opacity: 0; }
+@keyframes pxBars { to { transform: scaleX(1); } }
+@keyframes pxBob { 0% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes pxLunge { 0%, 100% { transform: none; } 40% { transform: translate(55%, -35%); } }
+@keyframes pxLungeLeft { 0%, 100% { transform: none; } 40% { transform: translate(-30%, 30%); } }
+@keyframes pxBlink { 0%, 33%, 66% { opacity: 0; transform: translateX(-4px); } 16%, 50%, 83%, 100% { opacity: 1; transform: translateX(4px); } }
+@keyframes pxFaint { from { opacity: 1; transform: none; clip-path: inset(0 0 0 0); } to { opacity: 0; transform: translateY(45%); clip-path: inset(0 0 60% 0); } }

@@ -2,9 +2,9 @@
 // Correct answer = your attack. Wrong answer = the boss hits you, then its "weakness" (your mistake) is revealed.
 const Battle = (() => {
   const HEROES = {
-    knight: { name: 'Knight', emoji: '🛡️', fx: '⚔️', blurb: '+40 HP and takes 20% less damage. Hard to knock out.', hp: 40, armor: 0.2 },
-    mage: { name: 'Mage', emoji: '🧙', fx: '🔥', blurb: '25% chance of a critical hit for double damage.', crit: 0.25 },
-    ninja: { name: 'Ninja', emoji: '🥷', fx: '🗡️', blurb: 'Answer streaks hit twice as hard. Rewards combos.', comboMult: 2 },
+    knight: { name: 'Knight', emoji: '🛡️', fx: '⚔️', move: 'SHIELD BASH', px: 'slash', blurb: '+40 HP and takes 20% less damage. Hard to knock out.', hp: 40, armor: 0.2 },
+    mage: { name: 'Mage', emoji: '🧙', fx: '🔥', move: 'FIREBALL', px: 'fireball', blurb: '25% chance of a critical hit for double damage.', crit: 0.25 },
+    ninja: { name: 'Ninja', emoji: '🥷', fx: '🗡️', move: 'SHADOW STRIKE', px: 'slash', blurb: 'Answer streaks hit twice as hard. Rewards combos.', comboMult: 2 },
   };
   const BOSSES = {
     math: [['The Exponent Hydra', '🐉'], ['Count Fractula', '🧛'], ['The Variable Golem', '🗿'], ['Sir Cumference', '🤖']],
@@ -49,13 +49,34 @@ const Battle = (() => {
       pmax, php: pmax, bmax: 100, bhp: 100, meter: 0,
       // Scale damage so a perfect run (with combo bonuses and ultimates) brings the boss down right at the end.
       base: 100 / (Array.from({ length: Math.max(1, total) }, (_, c) => 1 + 0.1 * Math.min(c, 5) * (hero.comboMult || 1)).reduce((x, y) => x + y, 0) * 1.12),
-      started: false, revives: 0, ko: false, damageDealt: 0,
+      started: false, revives: 0, ko: false, damageDealt: 0, bossLevel: 5 + idx * 3, lastLine: '',
     };
   }
 
   const bar = (cur, max, cls) => `<div class="hpbar ${cls}"><div style="width:${Math.max(0, cur / max * 100)}%"></div><span>${Math.max(0, Math.round(cur))}/${Math.round(max)}</span></div>`;
 
+  const px = () => typeof Pixel !== 'undefined' && Pixel.on();
+  const UP = (t) => Render.esc(String(t).toUpperCase());
+
+  // Pixel mode layout: retro battle scene (boss upper right, hero lower left) + a typewriter text box.
+  function pixelArenaHtml(b) {
+    return `
+      <div class="arena px-arena" id="arena">
+        <div class="px-scene">
+          <canvas class="px-bg" id="pxBg"></canvas>
+          <div class="px-box boss-box"><div class="px-name">${UP(b.boss.name)} <span>Lv${b.bossLevel}</span></div><div class="px-hp"><em>HP</em>${bar(b.bhp, b.bmax, 'b')}</div></div>
+          <div class="fighter boss ${b.bhp <= 0 ? 'down' : ''}" id="bossSprite"></div>
+          <div class="fighter hero ${b.php <= 0 ? 'down' : ''}" id="heroSprite"></div>
+          <div class="px-box hero-box"><div class="px-name">${UP(b.hero.name)} <span>Lv${b.level}</span></div><div class="px-hp"><em>HP</em>${bar(b.php, b.pmax, 'p')}</div>
+            <div class="meter ${b.meter >= 100 ? 'full' : ''}"><div style="width:${b.meter}%"></div><span>${b.meter >= 100 ? 'ULTIMATE READY' : 'ULT'}</span></div></div>
+          <div class="px-ctrl"><button id="heroSwitch" title="Switch hero">⇄</button><button id="musicBtn" title="Music">${Pixel.music.isOn() ? '♪' : '×'}</button></div>
+        </div>
+        <div class="px-text done" id="pxText">${Render.esc(b.lastLine || '')}</div>
+      </div>`;
+  }
+
   function arenaHtml(b) {
+    if (px()) return pixelArenaHtml(b);
     return `
       <div class="arena theme-${b.subject}" id="arena">
         <div class="arena-hud">
@@ -85,12 +106,26 @@ const Battle = (() => {
   function projectile(emoji, fromEl, toEl, big) {
     const a = arena(); if (!a) return;
     const ar = a.getBoundingClientRect(), f = fromEl.getBoundingClientRect(), t = toEl.getBoundingClientRect();
-    const p = document.createElement('div'); p.className = `proj ${big ? 'big' : ''}`; p.textContent = emoji;
+    const p = document.createElement('div'); p.className = `proj ${big ? 'big' : ''}`;
+    if (px()) p.appendChild(Pixel.sprite(big ? 'star' : emoji, 4)); else p.textContent = emoji;
     p.style.left = (f.left - ar.left + f.width / 2) + 'px'; p.style.top = (f.top - ar.top + f.height / 3) + 'px';
     p.style.setProperty('--dx', (t.left - f.left) + 'px'); p.style.setProperty('--dy', (t.top - f.top) + 'px');
     a.appendChild(p); setTimeout(() => p.remove(), 500);
   }
-  function say(text, ms = 2200) {
+  let typing = null;
+  function say(text, ms = 2200, b) {
+    const box = document.getElementById('pxText');
+    if (box) {
+      if (b) b.lastLine = text;
+      clearInterval(typing); box.classList.remove('done'); box.textContent = '';
+      let i = 0;
+      typing = setInterval(() => {
+        box.textContent = text.slice(0, ++i);
+        if (i % 2) Sound.blip();
+        if (i >= text.length) { clearInterval(typing); box.classList.add('done'); }
+      }, 28);
+      return;
+    }
     const s = document.getElementById('speech'); if (!s) return;
     s.textContent = text; s.classList.remove('hidden'); restart(s, 'pop-in');
     clearTimeout(say.t); say.t = setTimeout(() => s.classList.add('hidden'), ms);
@@ -104,7 +139,13 @@ const Battle = (() => {
   }
   function refreshBars(b) {
     const a = arena(); if (!a) return;
-    const set = (sel, cur, max) => { const el = a.querySelector(sel); if (!el) return; el.querySelector('div').style.width = Math.max(0, cur / max * 100) + '%'; el.querySelector('span').textContent = `${Math.max(0, Math.round(cur))}/${Math.round(max)}`; };
+    const set = (sel, cur, max) => {
+      const el = a.querySelector(sel); if (!el) return;
+      const pct = Math.max(0, cur / max * 100);
+      el.querySelector('div').style.width = pct + '%'; el.querySelector('span').textContent = `${Math.max(0, Math.round(cur))}/${Math.round(max)}`;
+      el.classList.toggle('mid', pct <= 50 && pct > 20); el.classList.toggle('low', pct <= 20);
+    };
+    if (px()) for (let i = 0; i < 5; i++) setTimeout(() => Sound.drain(), i * 70);
     set('.hpbar.p', b.php, b.pmax); set('.hpbar.b', b.bhp, b.bmax);
     const m = a.querySelector('.meter'); m.classList.toggle('full', b.meter >= 100);
     m.querySelector('div').style.width = b.meter + '%'; m.querySelector('span').textContent = b.meter >= 100 ? 'ULTIMATE READY' : 'ULT';
@@ -114,6 +155,25 @@ const Battle = (() => {
   async function mount(b, onSwitchHero) {
     const sw = document.getElementById('heroSwitch');
     if (sw) sw.onclick = async () => { const k = await pickHero(); b.heroKey = k; b.hero = HEROES[k]; onSwitchHero?.(); };
+    if (px()) {
+      document.getElementById('heroSprite').appendChild(Pixel.sprite(b.heroKey, 6));
+      document.getElementById('bossSprite').appendChild(Pixel.sprite(Pixel.bossSprite(b.boss), 6));
+      Pixel.background(document.getElementById('pxBg'), b.subject);
+      // refresh HP colors for the freshly drawn bars (without drain sounds)
+      for (const [sel, cur, max] of [['.hpbar.p', b.php, b.pmax], ['.hpbar.b', b.bhp, b.bmax]]) {
+        const el = document.querySelector(sel), pct = cur / max * 100; el?.classList.toggle('mid', pct <= 50 && pct > 20); el?.classList.toggle('low', pct <= 20);
+      }
+      const mb = document.getElementById('musicBtn');
+      mb.onclick = () => { const onNow = Pixel.music.toggle(); mb.textContent = onNow ? '♪' : '×'; Sound.click(); };
+      if (!b.started) {
+        b.started = true;
+        await Pixel.encounter();
+        Pixel.music.start();
+        say(`${b.boss.name.toUpperCase()} blocks your path!`, 0, b);
+        setTimeout(() => say(`${b.boss.name}: "${b.boss.taunt}"`, 0, b), 1900);
+      } else Pixel.music.start();
+      return;
+    }
     if (!b.started) {
       b.started = true;
       say(`${b.boss.taunt}`, 2600);
@@ -139,8 +199,9 @@ const Battle = (() => {
     const hero = document.getElementById('heroSprite'), boss = document.getElementById('bossSprite');
     restart(hero, 'lunge');
     ult ? Sound.ultimate() : crit ? Sound.crit() : Sound.slash();
+    if (px()) say(`${b.hero.name.toUpperCase()} used ${ult ? 'ULTIMATE ' + b.hero.move : b.hero.move}!`, 0, b);
     setTimeout(() => {
-      if (hero && boss) projectile(ult ? '🌟' : b.hero.fx, hero, boss, ult);
+      if (hero && boss) projectile(px() ? b.hero.px : (ult ? '🌟' : b.hero.fx), hero, boss, ult);
       setTimeout(() => {
         Sound.hit(); restart(boss, 'hurt'); restart(arena(), 'quake');
         floatText(dmg ? `-${dmg}` : '💢 Still standing!', boss, crit || ult ? 'crit' : '');
@@ -148,8 +209,9 @@ const Battle = (() => {
         else if (crit) floatText('CRITICAL!', boss, 'label');
         else if (combo >= 2) floatText(`${combo + 1}-HIT COMBO`, boss, 'label');
         refreshBars(b);
-        if (ko) setTimeout(async () => { boss?.classList.add('down'); Sound.ko(); await banner('K.O.!', 'ko'); }, 350);
-        else if (!isLast && b.bhp < 30) setTimeout(() => say('Impossible… I’m barely standing!'), 400);
+        if (px()) setTimeout(() => say(ko ? `${b.boss.name.toUpperCase()} was defeated!` : ult ? 'ULTIMATE! A devastating blow!' : crit ? 'A critical hit!' : !dmg ? `${b.boss.name} is hanging on!` : combo >= 2 ? `${combo + 1}-hit combo!` : 'A direct hit!', 0, b), 500);
+        if (ko) setTimeout(async () => { boss?.classList.add('down'); if (px()) { Pixel.music.stop(); Sound.victory(); } else { Sound.ko(); await banner('K.O.!', 'ko'); } }, 350);
+        else if (!isLast && b.bhp < 30 && !px()) setTimeout(() => say('Impossible… I’m barely standing!'), 400);
       }, 260);
     }, 180);
     return { damage: dmg, crit, ult, ko };
@@ -162,11 +224,13 @@ const Battle = (() => {
     const knockedOut = b.php <= 0;
     const hero = document.getElementById('heroSprite'), boss = document.getElementById('bossSprite');
     restart(boss, 'lunge-left');
+    if (px()) say(`${b.boss.name.toUpperCase()} strikes back!`, 0, b);
     setTimeout(() => {
       Sound.hurt(); restart(hero, 'hurt'); restart(arena(), 'quake');
       floatText(`-${dmg}`, hero, 'taken'); refreshBars(b);
-      say(['Ha! Got you!', 'Wrong move!', 'Is that all?', 'Too easy!'][Math.floor(Math.random() * 4)], 1800);
-      if (knockedOut) setTimeout(() => { hero?.classList.add('down'); banner('KNOCKED OUT', 'ko'); }, 300);
+      if (px()) setTimeout(() => say(knockedOut ? `${b.hero.name.toUpperCase()} is knocked out! Study the weakness, then revive.` : `${b.hero.name} took ${dmg} damage! Its weakness is revealed below.`, 0, b), 450);
+      else say(['Ha! Got you!', 'Wrong move!', 'Is that all?', 'Too easy!'][Math.floor(Math.random() * 4)], 1800);
+      if (knockedOut) setTimeout(() => { hero?.classList.add('down'); if (!px()) banner('KNOCKED OUT', 'ko'); }, 300);
     }, 250);
     return { damage: dmg, knockedOut };
   }
@@ -176,6 +240,7 @@ const Battle = (() => {
     b.revives++; b.php = Math.round(b.pmax / 2);
     const hero = document.getElementById('heroSprite'); hero?.classList.remove('down'); restart(hero, 'pop-in');
     refreshBars(b); Sound.levelUp(); floatText('+REVIVED', hero, 'heal');
+    if (px()) say(`${b.hero.name.toUpperCase()} got back up! Keep fighting!`, 0, b);
   }
 
   return { pickHero, getHero, create, arenaHtml, mount, attack, counter, revive, HEROES };
