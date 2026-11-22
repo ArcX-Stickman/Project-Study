@@ -227,6 +227,7 @@
                 <div class="uc-meta">${u.status === 'ready' ? `${u.lesson_count} lessons · ⭐ ${u.stars}/${u.max_stars}` : u.status === 'processing' ? '⏳ Building…' : '⚠️ ' + esc(u.error || 'Failed')} · <span class="muted">${esc(u.source_name || '')}</span></div>
                 ${u.status === 'ready' ? `<div class="mini-bar"><div style="width:${u.max_stars ? u.stars / u.max_stars * 100 : 0}%"></div></div>` : ''}
               </a>
+              ${u.status === 'error' ? `<button class="btn btn-ghost btn-sm" data-retry="${u.id}">↻ Retry</button>` : ''}
               <button class="icon-btn" data-del="${u.id}" title="Delete unit">🗑️</button>
             </div>`).join('') : '<div class="empty">No units yet. Upload your first test or review sheet below.</div>'}
         </div>
@@ -235,6 +236,7 @@
     wireUpload();
     $('#rename').onclick = async () => { const n = prompt('Rename class', course.name); if (n) { await api(`/courses/${id}`, { method: 'PATCH', body: { name: n } }); renderCourse(id); } };
     $('#delCourse').onclick = async () => { if (confirm(`Delete "${course.name}" and all its units?`)) { await api(`/courses/${id}`, { method: 'DELETE' }); location.hash = '#/'; } };
+    app.querySelectorAll('[data-retry]').forEach((b) => b.onclick = () => retryUnit(b.dataset.retry));
     app.querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => { if (confirm('Delete this unit?')) { await api(`/units/${b.dataset.del}`, { method: 'DELETE' }); renderCourse(id); } });
   }
 
@@ -259,11 +261,26 @@
       try {
         const s = await api(`/units/${unitId}/status`);
         if (s.status === 'ready') { clearInterval(tipT); Sound.complete(); burst(); location.hash = `#/unit/${unitId}`; return; }
-        if (s.status === 'error') { clearInterval(tipT); Sound.wrong(); app.innerHTML = `<div class="page center"><div class="card"><h2>⚠️ Couldn't build that unit</h2><p>${esc(s.error)}</p><a class="btn btn-primary" href="#/course/${s.course_id}">Back</a></div></div>`; return; }
+        if (s.status === 'error') {
+          clearInterval(tipT); Sound.wrong();
+          app.innerHTML = `<div class="page center"><div class="card"><h2>⚠️ Couldn't build that unit</h2><p>${esc(s.error)}</p><p class="muted small">Your file is saved, so you don't need to upload it again.</p><div class="row" style="justify-content:center"><a class="btn btn-ghost" href="#/course/${s.course_id}">Back</a><button class="btn btn-primary" id="retryUnit">↻ Retry</button></div></div></div>`;
+          $('#retryUnit').onclick = () => retryUnit(unitId);
+          return;
+        }
       } catch {}
       pollTimer = setTimeout(poll, 2500);
     };
     clearTimeout(pollTimer); poll();
+  }
+
+  async function retryUnit(unitId) {
+    Sound.whoosh();
+    try {
+      await api(`/units/${unitId}/retry`, { body: {} });
+      const target = `#/building/${unitId}`;
+      if (location.hash === target) route(); else location.hash = target; // same hash fires no hashchange
+    }
+    catch (e) { Sound.wrong(); toast(e.message, 'bad'); }
   }
 
   // ---------- unit (lesson map) ----------

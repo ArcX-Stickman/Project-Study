@@ -142,6 +142,7 @@ app.patch('/api/courses/:id', auth, (req, res) => {
 });
 
 app.delete('/api/courses/:id', auth, (req, res) => {
+  for (const u of db.prepare('SELECT u.source_path FROM units u JOIN courses c ON c.id=u.course_id WHERE c.id=? AND c.user_id=?').all(req.params.id, req.userId)) deleteSource(u);
   db.prepare('DELETE FROM courses WHERE id=? AND user_id=?').run(req.params.id, req.userId);
   res.json({ ok: true });
 });
@@ -169,6 +170,7 @@ app.patch('/api/units/:id', auth, (req, res) => {
 });
 
 app.delete('/api/units/:id', auth, (req, res) => {
+  deleteSource(db.prepare('SELECT source_path FROM units WHERE id=? AND user_id=?').get(req.params.id, req.userId));
   db.prepare('DELETE FROM units WHERE id=? AND user_id=?').run(req.params.id, req.userId);
   res.json({ ok: true });
 });
@@ -204,57 +206,85 @@ app.post('/api/upload', auth, aiBudget, upload.single('file'), (req, res) => {
 
   let courseId = Number(req.body?.courseId) || null;
   if (courseId && !db.prepare('SELECT 1 FROM courses WHERE id=? AND user_id=?').get(courseId, req.userId)) courseId = null;
-  const courseName = courseId ? db.prepare('SELECT name FROM courses WHERE id=?').get(courseId).name : null;
   const unitHint = String(req.body?.unitTitle || '').trim().slice(0, 100);
 
   // A unit must belong to a course; until AI names it, park it in a placeholder.
-  const placeholderCourse = courseId || Number(db.prepare('INSERT INTO courses (user_id, name, emoji, color) VALUES (?, ?, ?, ?)')
+  const autoCourse = !courseId;
+  const placeCourse = courseId || Number(db.prepare('INSERT INTO courses (user_id, name, emoji, color) VALUES (?, ?, ?, ?)')
     .run(req.userId, 'Organizing…', '✨', COLORS[0]).lastInsertRowid);
   const sourceName = req.file?.originalname?.slice(0, 120) || (text ? 'Pasted notes' : 'Demo');
-  const unitId = Number(db.prepare('INSERT INTO units (course_id, user_id, title, status, source_name) VALUES (?, ?, ?, ?, ?)')
-    .run(placeholderCourse, req.userId, unitHint || 'Building your unit…', 'processing', sourceName).lastInsertRowid);
-  res.json({ unitId, courseId: placeholderCourse });
+  const unitId = Number(db.prepare(`INSERT INTO units (course_id, user_id, title, status, source_name, source_path, source_mime, source_text, unit_hint)
+    VALUES (?, ?, ?, 'processing', ?, ?, ?, ?, ?)`)
+    .run(placeCourse, req.userId, unitHint || 'Building your unit…', sourceName, req.file?.path || null, req.file?.mimetype || null, text || null, unitHint).lastInsertRowid);
+  res.json({ unitId, courseId: placeCourse });
+  runGeneration(unitId, req.userId, autoCourse);
+});
 
-  (async () => {
-    try {
-      let plan;
-      if (!aiEnabled) {
-        await new Promise((r) => setTimeout(r, 2500));
-        plan = structuredClone(demoUnit);
-      } else {
-        let pdfBase64 = null, fileText = '';
-        if (req.file?.mimetype === 'application/pdf') pdfBase64 = fs.readFileSync(req.file.path).toString('base64');
-        else if (req.file) fileText = fs.readFileSync(req.file.path, 'utf8').slice(0, 200_000);
-        plan = await generateUnit({ pdfBase64, text: [fileText, text].filter(Boolean).join('\n\n'), filename: sourceName, courseName, unitHint });
-      }
-      plan.lessons = plan.lessons.filter((l) => l.questions?.length);
-      for (const l of plan.lessons) for (const q of l.questions) {
-        if (q.kind === 'mcq' && !(q.correct_index >= 0 && q.correct_index < q.choices.length)) q.kind = 'frq';
-      }
-      if (!plan.lessons.length) throw new Error('No lessons could be built from this material.');
+/** Retry a unit that failed (e.g. the free AI was overloaded) using the saved upload. */
+app.post('/api/units/:id/retry', auth, aiBudget, (req, res) => {
+  const u = db.prepare('SELECT u.*, c.name AS course_name FROM units u JOIN courses c ON c.id=u.course_id WHERE u.id=? AND u.user_id=?').get(req.params.id, req.userId);
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  if (u.status !== 'error') return res.status(400).json({ error: 'This unit is not in a failed state.' });
+  const hasSource = (u.source_path && fs.existsSync(u.source_path)) || u.source_text;
+  if (aiEnabled && !hasSource) return res.status(410).json({ error: 'The original file for this unit was not saved. Delete it and upload the PDF again.' });
+  db.prepare("UPDATE units SET status='processing', error=NULL WHERE id=?").run(u.id);
+  const autoCourse = ['Unsorted', 'Organizing…'].includes(u.course_name);
+  if (autoCourse) db.prepare("UPDATE courses SET name='Organizing…' WHERE id=?").run(u.course_id);
+  res.json({ unitId: u.id });
+  runGeneration(u.id, req.userId, autoCourse);
+});
 
-      let finalCourse = courseId;
-      if (!finalCourse) {
-        const existing = db.prepare('SELECT id FROM courses WHERE user_id=? AND name=? COLLATE NOCASE AND id<>?').get(req.userId, plan.course_suggestion, placeholderCourse);
-        if (existing) {
-          finalCourse = existing.id;
-          db.prepare('UPDATE units SET course_id=? WHERE id=?').run(finalCourse, unitId);
-          db.prepare('DELETE FROM courses WHERE id=?').run(placeholderCourse);
-        } else {
-          finalCourse = placeholderCourse;
-          db.prepare('UPDATE courses SET name=?, emoji=? WHERE id=?').run(plan.course_suggestion.slice(0, 60), (plan.course_emoji || '📘').slice(0, 4), finalCourse);
-        }
-      }
-      db.prepare('UPDATE units SET title=?, status=?, subject=?, summary=?, data=? WHERE id=?')
-        .run(unitHint || plan.unit_title, 'ready', plan.subject, plan.summary, JSON.stringify(plan), unitId);
-    } catch (e) {
-      console.error('generation failed:', e);
-      db.prepare('UPDATE units SET status=?, error=? WHERE id=?').run('error', String(e.message || e).slice(0, 300), unitId);
-      if (!courseId) db.prepare("UPDATE courses SET name='Unsorted' WHERE id=? AND name='Organizing…'").run(placeholderCourse);
-    } finally {
-      if (req.file) fs.rmSync(req.file.path, { force: true });
+function deleteSource(unit) {
+  if (unit?.source_path) fs.rmSync(unit.source_path, { force: true });
+}
+
+async function runGeneration(unitId, userId, autoCourse) {
+  const u = db.prepare('SELECT u.*, c.name AS course_name FROM units u JOIN courses c ON c.id=u.course_id WHERE u.id=?').get(unitId);
+  try {
+    let plan;
+    if (!aiEnabled) {
+      await new Promise((r) => setTimeout(r, 2500));
+      plan = structuredClone(demoUnit);
+    } else {
+      let pdfBase64 = null, fileText = '';
+      if (u.source_path && u.source_mime === 'application/pdf') pdfBase64 = fs.readFileSync(u.source_path).toString('base64');
+      else if (u.source_path) fileText = fs.readFileSync(u.source_path, 'utf8').slice(0, 200_000);
+      plan = await generateUnit({
+        pdfBase64, text: [fileText, u.source_text].filter(Boolean).join('\n\n'), filename: u.source_name,
+        courseName: autoCourse ? null : u.course_name, unitHint: u.unit_hint,
+      });
     }
-  })();
+    plan.lessons = plan.lessons.filter((l) => l.questions?.length);
+    for (const l of plan.lessons) for (const q of l.questions) {
+      if (q.kind === 'mcq' && !(q.correct_index >= 0 && q.correct_index < q.choices.length)) q.kind = 'frq';
+    }
+    if (!plan.lessons.length) throw new Error('No lessons could be built from this material.');
+
+    if (autoCourse) {
+      const existing = db.prepare('SELECT id FROM courses WHERE user_id=? AND name=? COLLATE NOCASE AND id<>?').get(userId, plan.course_suggestion, u.course_id);
+      const others = db.prepare('SELECT COUNT(*) n FROM units WHERE course_id=? AND id<>?').get(u.course_id, unitId).n;
+      if (existing) {
+        db.prepare('UPDATE units SET course_id=? WHERE id=?').run(existing.id, unitId);
+        if (!others) db.prepare('DELETE FROM courses WHERE id=?').run(u.course_id); // placeholder is now empty
+      } else {
+        db.prepare('UPDATE courses SET name=?, emoji=? WHERE id=?').run(plan.course_suggestion.slice(0, 60), (plan.course_emoji || '📘').slice(0, 4), u.course_id);
+      }
+    }
+    db.prepare(`UPDATE units SET title=?, status='ready', subject=?, summary=?, data=?, source_path=NULL, source_text=NULL WHERE id=?`)
+      .run(u.unit_hint || plan.unit_title, plan.subject, plan.summary, JSON.stringify(plan), unitId);
+    deleteSource(u); // success: the original upload is no longer needed
+  } catch (e) {
+    console.error('generation failed:', e.message);
+    // Keep the uploaded file so the student can click Retry without re-uploading.
+    db.prepare("UPDATE units SET status='error', error=? WHERE id=?").run(String(e.message || e).slice(0, 300), unitId);
+    if (autoCourse) db.prepare("UPDATE courses SET name='Unsorted' WHERE id=? AND name='Organizing…'").run(u.course_id);
+  }
+}
+
+app.get('/api/units/:id/status', auth, (req, res) => {
+  const u = db.prepare('SELECT id, course_id, status, error, title FROM units WHERE id=? AND user_id=?').get(req.params.id, req.userId);
+  if (!u) return res.status(404).json({ error: 'Not found' });
+  res.json(u);
 });
 
 // ---------- free path: import a unit made by any chatbot ----------
@@ -286,11 +316,6 @@ app.post('/api/import', auth, (req, res) => {
   res.json({ unitId, courseId });
 });
 
-app.get('/api/units/:id/status', auth, (req, res) => {
-  const u = db.prepare('SELECT id, course_id, status, error, title FROM units WHERE id=? AND user_id=?').get(req.params.id, req.userId);
-  if (!u) return res.status(404).json({ error: 'Not found' });
-  res.json(u);
-});
 
 // ---------- practice ----------
 function getQuestion(unit, lessonIdx, qIdx, provided) {
