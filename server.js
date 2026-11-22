@@ -5,7 +5,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { db, UPLOAD_DIR } from './lib/db.js';
-import { aiEnabled, MODEL, generateUnit, gradeAnswer, similarQuestion, tutor } from './lib/ai.js';
+import { aiEnabled, PROVIDER, modelLabel, generateUnit, gradeAnswer, similarQuestion, tutor } from './lib/ai.js';
+import { buildImportPrompt } from './lib/importPrompt.js';
+import { normalizePlan, extractJson } from './lib/normalize.js';
+import { UnitPlan } from './lib/schemas.js';
 import { findImage } from './lib/images.js';
 import { demoUnit, demoGrade } from './lib/demo.js';
 import { quickCheck } from './lib/check.js';
@@ -89,9 +92,9 @@ app.post('/api/logout', (req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/me', auth, (req, res) => {
+app.get('/api/me', auth, async (req, res) => {
   const u = db.prepare('SELECT * FROM users WHERE id=?').get(req.userId);
-  res.json({ user: publicUser(u), ai: aiEnabled, model: aiEnabled ? MODEL : null });
+  res.json({ user: publicUser(u), ai: aiEnabled, provider: aiEnabled ? PROVIDER : null, model: await modelLabel().catch(() => null) });
 });
 
 // ---------- AI rate limiting (protects your API bill) ----------
@@ -254,6 +257,35 @@ app.post('/api/upload', auth, aiBudget, upload.single('file'), (req, res) => {
   })();
 });
 
+// ---------- free path: import a unit made by any chatbot ----------
+app.get('/api/import-prompt', auth, (req, res) => {
+  const courseId = Number(req.query.courseId) || null;
+  const course = courseId && db.prepare('SELECT name FROM courses WHERE id=? AND user_id=?').get(courseId, req.userId);
+  res.json({ prompt: buildImportPrompt({ courseName: course?.name, unitTitle: String(req.query.unitTitle || '').slice(0, 100) }) });
+});
+
+app.post('/api/import', auth, (req, res) => {
+  let plan;
+  try {
+    plan = UnitPlan.parse(normalizePlan(extractJson(String(req.body?.json || '').slice(0, 2_000_000))));
+  } catch (e) {
+    return res.status(400).json({ error: e.issues ? 'The JSON is missing required parts. Ask the chatbot to follow the format exactly.' : e.message });
+  }
+  if (!plan.lessons.length) return res.status(400).json({ error: 'No lessons with questions were found in that JSON.' });
+  let courseId = Number(req.body?.courseId) || null;
+  if (courseId && !db.prepare('SELECT 1 FROM courses WHERE id=? AND user_id=?').get(courseId, req.userId)) courseId = null;
+  if (!courseId) {
+    const existing = db.prepare('SELECT id FROM courses WHERE user_id=? AND name=? COLLATE NOCASE').get(req.userId, plan.course_suggestion);
+    const n = db.prepare('SELECT COUNT(*) n FROM courses WHERE user_id=?').get(req.userId).n;
+    courseId = existing?.id || Number(db.prepare('INSERT INTO courses (user_id, name, emoji, color) VALUES (?, ?, ?, ?)')
+      .run(req.userId, plan.course_suggestion.slice(0, 60), plan.course_emoji.slice(0, 4), COLORS[n % COLORS.length]).lastInsertRowid);
+  }
+  const title = String(req.body?.unitTitle || '').trim().slice(0, 100) || plan.unit_title;
+  const unitId = Number(db.prepare('INSERT INTO units (course_id, user_id, title, status, source_name, subject, summary, data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(courseId, req.userId, title, 'ready', 'Imported from chatbot', plan.subject, plan.summary, JSON.stringify(plan)).lastInsertRowid);
+  res.json({ unitId, courseId });
+});
+
 app.get('/api/units/:id/status', auth, (req, res) => {
   const u = db.prepare('SELECT id, course_id, status, error, title FROM units WHERE id=? AND user_id=?').get(req.params.id, req.userId);
   if (!u) return res.status(404).json({ error: 'Not found' });
@@ -332,7 +364,7 @@ app.post('/api/tutor', auth, aiBudget, async (req, res) => {
   const lesson = unit?.data?.lessons?.[Number(lessonIdx)];
   if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
   if (!String(message || '').trim()) return res.status(400).json({ error: 'Ask something!' });
-  if (!aiEnabled) return res.json({ answer: '*(Demo mode)* Add an `ANTHROPIC_API_KEY` to chat with your AI tutor about this lesson.', visual: { type: 'none' } });
+  if (!aiEnabled) return res.json({ answer: '*(Demo mode)* Add a free `GEMINI_API_KEY` (see README) to chat with the AI tutor about this lesson.', visual: { type: 'none' } });
   try { res.json(await tutor({ lesson, questionText, message: String(message).slice(0, 2000), subject: unit.subject })); }
   catch (e) { aiError(res, e); }
 });
@@ -360,7 +392,8 @@ app.get('/api/image', auth, async (req, res) => {
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 app.get('/{*splat}', (req, res) => res.sendFile(path.resolve('public/index.html')));
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`\n  📚 Project Study running at http://localhost:${PORT}`);
-  console.log(aiEnabled ? `  🤖 AI: ${MODEL}` : '  🧪 Demo mode (no ANTHROPIC_API_KEY set) — uploads create a sample unit.\n');
+  if (aiEnabled) console.log(`  🤖 AI: ${await modelLabel()}`);
+  else console.log('  🧪 No AI key set — uploads create a sample unit. Free options: set GEMINI_API_KEY, or use "Import from a free chatbot" in the app.\n');
 });

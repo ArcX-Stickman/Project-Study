@@ -2,17 +2,30 @@
   "name": "Project Study",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
   "postCreateCommand": "npm install",
-  "forwardPorts": [3000],
+  "forwardPorts": [
+    3000
+  ],
   "portsAttributes": {
-    "3000": { "label": "Project Study", "onAutoForward": "openBrowser" }
+    "3000": {
+      "label": "Project Study",
+      "onAutoForward": "openBrowser"
+    }
   },
   "secrets": {
+    "GEMINI_API_KEY": {
+      "description": "FREE option. Google Gemini API key from aistudio.google.com/apikey (no credit card). Leave empty to skip.",
+      "documentationUrl": "https://aistudio.google.com/apikey"
+    },
     "ANTHROPIC_API_KEY": {
-      "description": "Optional. Your Anthropic API key from console.anthropic.com. Leave empty for free demo mode.",
+      "description": "Optional, paid. Claude API key from console.anthropic.com. Takes priority over Gemini if both are set.",
       "documentationUrl": "https://console.anthropic.com/settings/keys"
     }
   },
   "customizations": {
-    "codespaces": { "openFiles": ["README.md"] }
+    "codespaces": {
+      "openFiles": [
+        "README.md"
+      ]
+    }
   }
 }

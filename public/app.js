@@ -106,7 +106,7 @@
     return `
       <div class="card upload-card">
         <h2>⬆️ Add class material</h2>
-        <p class="muted">Upload a test, review sheet, or notes (PDF). ${aiOn ? 'Claude builds lessons + practice from it.' : '<b>Demo mode:</b> no API key set, so this creates a sample unit.'}</p>
+        <p class="muted">Upload a test, review sheet, or notes (PDF). ${aiOn ? 'AI builds lessons + practice from it.' : '<b>No AI key set:</b> "Build my unit" creates a sample unit. Use the free chatbot option to build a unit from your real material.'}</p>
         <label class="dropzone" id="drop">
           <input type="file" id="file" accept="application/pdf,.pdf,.txt,text/plain" hidden>
           <div class="dz-icon">📄</div>
@@ -117,7 +117,10 @@
           ${fixedCourseId ? `<input type="hidden" id="courseSel" value="${fixedCourseId}">` : `<label class="grow">Class<select id="courseSel"><option value="">✨ Let AI decide / create it</option>${opts}</select></label>`}
           <label class="grow">Unit name <span class="muted">(optional)</span><input id="unitTitle" placeholder="e.g. Unit 5 – Geometric Sequences"></label>
         </div>
-        <button class="btn btn-primary btn-lg" id="go">Build my unit 🚀</button>
+        <div class="row">
+          <button class="btn btn-primary btn-lg" id="go">Build my unit 🚀</button>
+          <button class="btn btn-ghost" id="importBtn">🆓 Free: build it with any chatbot</button>
+        </div>
       </div>`;
   }
   function wireUpload() {
@@ -127,6 +130,7 @@
     ['dragover', 'dragenter'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
     ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
     drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) { file.files = e.dataTransfer.files; Sound.select(); show(); } });
+    $('#importBtn').onclick = () => openImport();
     $('#go').onclick = async () => {
       const fd = new FormData();
       if (file.files[0]) fd.append('file', file.files[0]);
@@ -137,6 +141,43 @@
       $('#go').disabled = true; $('#go').textContent = 'Uploading…'; Sound.whoosh();
       try { const r = await api('/upload', { body: fd }); location.hash = `#/building/${r.unitId}`; }
       catch (e) { Sound.wrong(); toast(e.message, 'bad'); $('#go').disabled = false; $('#go').textContent = 'Build my unit 🚀'; }
+    };
+  }
+
+  // ---------- free path: build the unit in any chatbot, paste the JSON back ----------
+  async function openImport() {
+    Sound.click();
+    const courseId = $('#courseSel')?.value || '';
+    const unitTitle = $('#unitTitle')?.value || '';
+    let prompt = '';
+    try { prompt = (await api(`/import-prompt?courseId=${encodeURIComponent(courseId)}&unitTitle=${encodeURIComponent(unitTitle)}`)).prompt; }
+    catch (e) { toast(e.message, 'bad'); return; }
+    const m = modal(`
+      <h2>🆓 Build a unit with a free chatbot</h2>
+      <ol class="import-steps">
+        <li><button class="btn btn-primary btn-sm" id="copyPrompt">📋 Copy the prompt</button></li>
+        <li>Open a free chatbot: <a href="https://claude.ai" target="_blank" rel="noopener noreferrer">Claude</a>, <a href="https://gemini.google.com" target="_blank" rel="noopener noreferrer">Gemini</a>, or <a href="https://chatgpt.com" target="_blank" rel="noopener noreferrer">ChatGPT</a>.</li>
+        <li><b>Attach your PDF</b> (or paste your notes), paste the prompt, and send.</li>
+        <li>Copy its whole reply and paste it below. If it got cut off, type <i>continue</i> there and paste both parts.</li>
+      </ol>
+      <textarea id="importJson" rows="7" placeholder="Paste the chatbot's reply here…"></textarea>
+      <div class="form-error" id="importErr"></div>
+      <div class="row"><button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="doImport">Import unit ▶</button></div>
+      <p class="muted small">Grading still works without a key: answers are checked instantly, and wrong answers show the mistake explanations and visuals the chatbot wrote. Only answer-specific feedback and the tutor need a key.</p>`);
+    m.querySelector('.modal').classList.add('modal-wide');
+    $('#copyPrompt', m).onclick = async () => {
+      try { await navigator.clipboard.writeText(prompt); Sound.correct(); $('#copyPrompt', m).textContent = '✅ Copied!'; }
+      catch {
+        const ta = document.createElement('textarea'); ta.value = prompt; ta.rows = 6; ta.readOnly = true;
+        $('#copyPrompt', m).replaceWith(ta); ta.select(); toast('Select all and copy this prompt.');
+      }
+    };
+    $('#doImport', m).onclick = async () => {
+      const btn = $('#doImport', m); btn.disabled = true; btn.textContent = 'Importing…';
+      try {
+        const r = await api('/import', { body: { json: $('#importJson', m).value, courseId, unitTitle } });
+        m.remove(); Sound.complete(); burst(); location.hash = `#/unit/${r.unitId}`;
+      } catch (e) { Sound.wrong(); $('#importErr', m).textContent = e.message; btn.disabled = false; btn.textContent = 'Import unit ▶'; }
     };
   }
 

@@ -16,15 +16,42 @@ Requires **Node.js 22.13+** (uses the built-in SQLite).
 
 ```bash
 npm install
-cp .env.example .env      # then put your Anthropic API key in .env
+cp .env.example .env      # optional: add a free GEMINI_API_KEY (or a paid ANTHROPIC_API_KEY)
 npm start                 # http://localhost:3000
 ```
 
 To load the `.env` file, run `node --env-file=.env --disable-warning=ExperimentalWarning server.js`, or export the variables in your shell.
 
-**No API key?** The app runs in **demo mode**: uploading anything creates a sample unit (geometric sequences, physics vectors, War of 1812), so you can try the whole experience for free.
+**No API key?** Uploading creates a sample unit so you can try the app, and you can build real units for free with the chatbot import. See **Using it for free** below.
 
 Get an API key at <https://console.anthropic.com>. You pay per use.
+
+## Using it for free
+
+There are three ways to run Project Study, and two of them cost nothing.
+
+| Option | Cost | Unit quality | Feedback on wrong answers | Tutor chat |
+|---|---|---|---|---|
+| **A. Free chatbot import** (no key) | Free | Good (uses whatever chatbot you pick) | Explanations and visuals written in advance for each wrong choice / common mistake | ✗ |
+| **B. Free Gemini API key** | Free, with daily limits | Decent; weaker at multi-step math than paid models | Written about *your* exact answer | ✓ |
+| **C. Claude API key** | Paid per use | Best | Written about *your* exact answer | ✓ |
+
+### A. Free chatbot import (no key at all)
+1. In the app, click **🆓 Free: build it with any chatbot** and copy the prompt.
+2. Open a free chatbot (claude.ai, gemini.google.com, or chatgpt.com), **attach your PDF**, paste the prompt, and send.
+3. Paste its whole reply back into the app and click **Import**.
+
+Free chatbots have message limits too, but one unit is one message. If a long unit gets cut off, type `continue` and paste both parts.
+
+### B. Free Gemini API key
+1. Get a key at <https://aistudio.google.com/apikey>. Sign in with a Google account; no credit card needed.
+2. Put it in `.env` as `GEMINI_API_KEY=...`, or in Codespaces add it as a secret named `GEMINI_API_KEY`.
+3. Restart the app. It checks which free Gemini models your key can use and picks the newest one automatically. The startup log shows which models it picked.
+
+Things to know about the free tier:
+- **Daily limits are small and change often.** The bigger "Flash" model may allow only a few dozen requests per day. The app builds units with Flash, does grading and tutoring with "Flash-Lite" (higher limits), and switches models when one runs out. If both run out, wait until the next day. See your real limits in Google AI Studio.
+- **Google may use free-tier data to improve its products.** Don't upload anything personal.
+- **The free model makes more mistakes.** Double-check answer keys that look wrong.
 
 ## Run it in GitHub Codespaces (no install needed)
 
@@ -32,7 +59,7 @@ Get an API key at <https://console.anthropic.com>. You pay per use.
 2. In the terminal, run `npm start`.
 3. Click **Open in Browser** on the popup for port 3000 (or use the **Ports** tab).
 
-**To use real AI in Codespaces:** add your key as a Codespaces secret, not in a file. Go to GitHub **Settings → Codespaces → Secrets → New secret**, name it `ANTHROPIC_API_KEY`, and give this repo access. Then restart the codespace. The server reads the key from the environment automatically.
+**To use AI in Codespaces:** add your key as a Codespaces secret, not in a file. Go to GitHub **Settings → Codespaces → Secrets → New secret**, name it `GEMINI_API_KEY` (free) or `ANTHROPIC_API_KEY` (paid), and give this repo access. Then restart the codespace. The server reads the key from the environment automatically.
 
 Notes:
 - The forwarded port is **private** by default (only you can open it). Don't make it public unless you mean to share your API bill.
@@ -44,7 +71,10 @@ Notes:
 | Piece | What it does |
 |---|---|
 | `server.js` | Express API: accounts, classes and units, uploads, grading, XP |
-| `lib/ai.js` | Every Claude call. PDFs go straight to Claude, which reads text, tables, and diagrams |
+| `lib/ai.js` | Every AI call (Claude or Gemini). PDFs go straight to the model, which reads text, tables, and diagrams |
+| `lib/gemini.js` | Free Gemini provider: auto-picks models and switches when the free quota runs out |
+| `lib/normalize.js` | Repairs incomplete AI or chatbot JSON so it still imports |
+| `lib/importPrompt.js` | The copy-paste prompt for the free chatbot import |
 | `lib/schemas.js` | Strict JSON schemas for lessons, questions, grades, and visuals |
 | `lib/check.js` | Free instant checks (equivalent numbers, fractions, algebraic expressions) that run before any AI call |
 | `lib/images.js` | Wikimedia Commons image search with author and license attribution |
