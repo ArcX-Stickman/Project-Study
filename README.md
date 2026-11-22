@@ -20,7 +20,7 @@ cp .env.example .env      # optional: add a free GEMINI_API_KEY (or a paid ANTHR
 npm start                 # http://localhost:3000
 ```
 
-To load the `.env` file, run `node --env-file=.env --disable-warning=ExperimentalWarning server.js`, or export the variables in your shell.
+`npm start` loads `.env` automatically. `.env` is in `.gitignore`, so your key is never committed.
 
 **No API key?** Uploading creates a sample unit so you can try the app, and you can build real units for free with the chatbot import. See **Using it for free** below.
 
@@ -45,7 +45,7 @@ Free chatbots have message limits too, but one unit is one message. If a long un
 
 ### B. Free Gemini API key
 1. Get a key at <https://aistudio.google.com/apikey>. Sign in with a Google account; no credit card needed.
-2. Put it in `.env` as `GEMINI_API_KEY=...`, or in Codespaces add it as a secret named `GEMINI_API_KEY`.
+2. Create a file named `.env` in the project folder (in Codespaces too) containing `GEMINI_API_KEY=your-key`, or add a Codespaces secret named `GEMINI_API_KEY` instead.
 3. Restart the app. It checks which free Gemini models your key can use and picks the newest one automatically. The startup log shows which models it picked.
 
 Things to know about the free tier:
